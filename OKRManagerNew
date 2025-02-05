@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IhsaanInspired.org OKR Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Previous CSS remains the same */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .view {
+            display: none;
+        }
+
+        .active-view {
+            display: block;
+        }
+
+        .okr-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+        }
+
+        .okr-item {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-height: 300px;
+        }
+
+        .chart-container {
+            height: 200px;
+            margin-top: 15px;
+        }
+
+        button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        .add-btn { background-color: #4CAF50; color: white; }
+        .remove-btn { background-color: #f44336; color: white; }
+        .counter-btn { background-color: #2196F3; color: white; width: 35px; }
+        .back-btn { background-color: #9E9E9E; color: white; }
+
+        .row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        input[type="text"], input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Menu View -->
+    <div id="mainMenu" class="view active-view">
+        <h2>IhsaanInspired.org OKR Dashboard</h2>
+        <button onclick="showCreateView()">Create New OKR</button>
+        <div class="okr-list" id="okrList"></div>
+    </div>
+
+    <!-- Create/Edit OKR View -->
+    <div id="editView" class="view">
+        <button class="back-btn" onclick="showMainMenu()">← Back to Dashboard</button>
+        <div class="okr-card">
+            <input type="text" id="okrTitle" placeholder="OKR Title">
+            <div id="rowsContainer"></div>
+            <button class="add-btn" onclick="addNewRow()">Add Row</button>
+            <button class="add-btn" onclick="saveOKR()">Save OKR</button>
+        </div>
+    </div>
+
+    <script>
+        let okrs = [];
+        let currentEditingId = null;
+
+        function showView(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active-view'));
+            document.getElementById(viewId).classList.add('active-view');
+        }
+
+        function showMainMenu() {
+            renderOKRList();
+            showView('mainMenu');
+        }
+
+        function showCreateView() {
+            currentEditingId = null;
+            document.getElementById('okrTitle').value = '';
+            document.getElementById('rowsContainer').innerHTML = '';
+            showView('editView');
+        }
+
+        function renderOKRList() {
+            const container = document.getElementById('okrList');
+            container.innerHTML = okrs.map(okr => `
+                <div class="okr-item">
+                    <h3>${okr.title}</h3>
+                    <div class="chart-container">
+                        <canvas id="chart-${okr.id}"></canvas>
+                    </div>
+                    <button onclick="editOKR('${okr.id}')">Edit</button>
+                </div>
+            `).join('');
+
+            okrs.forEach(okr => {
+                const ctx = document.getElementById(`chart-${okr.id}`);
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: okr.rows.map(row => row.kpi || 'KPI'),
+                        datasets: [{
+                            label: 'Progress',
+                            data: okr.rows.map(row => 
+                                Math.min((row.current / row.goal) * 100, 100)
+                            ),
+                            backgroundColor: '#2196F3',
+                            borderWidth: 0,
+                            borderRadius: 4,
+                            barThickness: 12
+                        }, {
+                            label: 'Remaining',
+                            data: okr.rows.map(row => 
+                                Math.max(100 - (row.current / row.goal) * 100, 0)
+                            ),
+                            backgroundColor: '#e0e0e0',
+                            borderWidth: 0,
+                            borderRadius: 4,
+                            barThickness: 12
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        scales: {
+                            x: {
+                                stacked: true,
+                                max: 100,
+                                display: false
+                            },
+                            y: {
+                                stacked: true,
+                                grid: { display: false }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => {
+                                        const row = okr.rows[context.dataIndex];
+                                        return `${row.kpi}: ${row.current} / ${row.goal} (${Math.min(
+                                            Math.round((row.current / row.goal) * 100), 100
+                                        )}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            });
+        }
+
+        // Rest of the functions remain the same as previous version
+        function createRow(row = { kpi: '', current: 0, goal: 0 }) {
+            const rowEl = document.createElement('div');
+            rowEl.className = 'row';
+            rowEl.innerHTML = `
+                <input type="text" value="${row.kpi}" placeholder="Project/KPI">
+                <div class="counter-controls">
+                    <button class="counter-btn" onclick="adjustCounter(this, -1)">-</button>
+                    <input type="number" value="${row.current}" class="current-amount">
+                    <button class="counter-btn" onclick="adjustCounter(this, 1)">+</button>
+                </div>
+                <input type="number" value="${row.goal}" placeholder="Total Goal" class="total-amount">
+                <button class="remove-btn" onclick="this.parentElement.remove()">×</button>
+            `;
+            return rowEl;
+        }
+
+        function addNewRow() {
+            const rows = document.getElementById('rowsContainer').querySelectorAll('.row');
+            if (rows.length >= 9) {
+                alert('Maximum 9 rows per OKR');
+                return;
+            }
+            document.getElementById('rowsContainer').appendChild(createRow());
+        }
+
+        function adjustCounter(button, delta) {
+            const input = button.parentElement.querySelector('.current-amount');
+            input.value = Math.max(parseInt(input.value) + delta, 0);
+        }
+
+        function saveOKR() {
+            const title = document.getElementById('okrTitle').value.trim();
+            const rows = Array.from(document.getElementById('rowsContainer').querySelectorAll('.row')).map(row => ({
+                kpi: row.querySelector('input[type="text"]').value,
+                current: parseInt(row.querySelector('.current-amount').value),
+                goal: parseInt(row.querySelector('.total-amount').value)
+            }));
+
+            if (!title) {
+                alert('Please enter a title for your OKR');
+                return;
+            }
+
+            const okr = {
+                id: currentEditingId || Date.now().toString(),
+                title,
+                rows
+            };
+
+            if (!currentEditingId) {
+                okrs.push(okr);
+            } else {
+                const index = okrs.findIndex(o => o.id === currentEditingId);
+                okrs[index] = okr;
+            }
+
+            showMainMenu();
+        }
+
+        function editOKR(id) {
+            const okr = okrs.find(o => o.id === id);
+            if (!okr) return;
+
+            currentEditingId = okr.id;
+            document.getElementById('okrTitle').value = okr.title;
+            const container = document.getElementById('rowsContainer');
+            container.innerHTML = '';
+            okr.rows.forEach(row => container.appendChild(createRow(row)));
+            showView('editView');
+        }
+
+        // Initialize with sample data
+        okrs = [{
+            id: '1',
+            title: 'Marketing Goals',
+            rows: [
+                { kpi: 'Website Visitors', current: 5000, goal: 10000 },
+                { kpi: 'Conversion Rate', current: 7, goal: 10 },
+                { kpi: 'Social Followers', current: 2500, goal: 5000 }
+            ]
+        }];
+        showMainMenu();
+    </script>
+</body>
+</html>
